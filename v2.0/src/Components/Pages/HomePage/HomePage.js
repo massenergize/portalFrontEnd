@@ -13,6 +13,7 @@ import { IS_SANDBOX } from "../../../config";
  */
 class HomePage extends React.Component {
   render() {
+    console.log("Tis is it",this.props.pageData);
     if (!this.props.pageData) {
       return (
         <ErrorPage
