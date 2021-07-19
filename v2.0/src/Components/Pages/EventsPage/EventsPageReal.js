@@ -20,7 +20,7 @@ import Tooltip from "../Widgets/CustomTooltip";
 // import notFound from "./not-found.jpg";
 // import MECard from "../Widgets/MECard";
 // import METextView from "../Widgets/METextView";
-
+import { apiCall } from "../../../api/functions";
 /**
  * Renders the event page
  */
@@ -35,6 +35,7 @@ class EventsPage extends React.Component {
       checked_values: null,
       mirror_events: [],
       searchText: null,
+      rescheduledEvents: []
     };
     this.addMeToSelected = this.addMeToSelected.bind(this);
   }
@@ -68,6 +69,7 @@ class EventsPage extends React.Component {
     const pageData = this.props.pageData;
     if (pageData == null) return <LoadingCircle />;
 
+    
     if (!this.props.events || !this.props.tagCols) {
       return <LoadingCircle />;
     }
@@ -85,10 +87,12 @@ class EventsPage extends React.Component {
           errorDescription="Unable to load Events data"
         />
       );
-
+      
     const found =
       this.searchIsActiveSoFindContentThatMatch() ||
       applyTagsAndGetContent(this.props.events, this.state.checked_values);
+    
+    
     return (
       <>
         <div
@@ -158,7 +162,8 @@ class EventsPage extends React.Component {
   /**
    * @param events - json list of events
    */
-  renderEvents(events) {
+   renderEvents(events) {
+    
     //when mirror_events.length ===0, it means no one is searching,so go on to check if
     //someone if user is using check_values
     //if check_values ===null, then it means it is probably the first time the user
@@ -178,23 +183,73 @@ class EventsPage extends React.Component {
     }
 
     if (events) {
-      return events.map((event) => {
+      const page = events.map((event) => {
+        let recurringDetailString = "";
         const dateString = dateFormatString(
           new Date(event.start_date_and_time),
           new Date(event.end_date_and_time)
         );
-
+        if (event.is_recurring) {
+          
+          if (event.recurring_details.recurring_type === "week") {
+            if (event.recurring_details.separation_count === 1) {
+              recurringDetailString = `Every ${event.recurring_details.day_of_week}`
+            } else {
+              recurringDetailString = `Every ${event.recurring_details.separation_count} weeks on ${event.recurring_details.day_of_week}`
+            }
+          } else if (event.recurring_details.recurring_type === "month") {
+            if (event.recurring_details.separation_count === 1) {
+              recurringDetailString = `The ${event.recurring_details.week_of_month} ${event.recurring_details.day_of_week} of every month`
+            } else {
+              recurringDetailString = `Every ${event.recurring_details.separation_count} months on the ${event.recurring_details.week_of_month} ${event.recurring_details.day_of_week}`
+            }
+          }
+          //can optimize this by only making the api call if the date is before today's date
+          apiCall('events.date.update', {'event_id': event.id })
+          .then((json) => {
+            if (json.success) {
+              console.log(json);
+            }else {
+              console.log(json.error);
+            }
+          })
+          .catch((err) => {
+            console.log(err);
+          })
+          apiCall('events.exceptions.list', {'event_id': event.id })
+          .then((json) => {
+            if (json.success) {
+              //jsondata[0]returns the event id - since the simple_json() function in the recurring..exception model returns the id
+              if (json.data[0] && json.data[0].event ) {
+                const id = json.data[0].event;
+                if (this.state.rescheduledEvents.indexOf(json.data[0].event) === -1) {
+                  this.setState({ rescheduledEvents: [...this.state.rescheduledEvents, id]});
+                }
+              }              
+            } else {
+              console.log(json.error);
+            }
+          })
+          .catch((err) => {
+            console.log(err);
+          });
+        }
+        
         return (
-          <div key={event.id.toString()} className="col-md-6 col-lg-6 col-sm-6">
-            <NewEventsCard
-              {...event}
-              dateString={dateString}
-              links={this.props.links}
-            />
+          // can we format the cancelled message to be an overlay instead of going above?
+          <div style={{opacity: (event.recurring_details && event.recurring_details.is_cancelled)||(this.state.rescheduledEvents && this.state.rescheduledEvents.indexOf(event.id) > -1) ? 0.3 : 1}} key={event.id.toString()} className="col-md-6 col-lg-6 col-sm-6">
+            <p style={{"color":"red"}} >{event.recurring_details && event.recurring_details.is_cancelled ? "This event has been cancelled temporarily." : ""}</p> 
+            <p style={{"color":"red"}}>{this.state.rescheduledEvents && this.state.rescheduledEvents.indexOf(event.id) > -1 ? "This event has been rescheduled temporarily. See the rescheduled event.":""} </p>
+            <NewEventsCard {...event} recurringDetailString={recurringDetailString} dateString={dateString} links={this.props.links}/>
           </div>
         );
+          
+          
       });
+      
+      return page; 
     }
+    
   }
 
   userRSVP(event_id) {
@@ -206,6 +261,24 @@ class EventsPage extends React.Component {
     });
     if (RSVPs.length < 1) return null;
     return RSVPs[0];
+  }
+
+  getRescheduled(event_id) {
+    apiCall('events.exceptions.list', {'event_id': event_id })
+    .then((json) => {
+      if (json.success) {
+        console.log('rescheduled event in function!', json);
+        return json;
+      } else {
+        console.log(json.error);
+        return json.error;
+      }
+    })
+    .catch((err) => {
+      console.log(err);
+      return err;
+    });
+    
   }
 }
 

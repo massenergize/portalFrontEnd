@@ -9,7 +9,7 @@ import "./assets/css/style.css";
 import HomePage from "./components/Pages/HomePage/HomePage";
 import ActionsPage from "./components/Pages/ActionsPage/ActionsPage";
 import OneActionPage from "./components/Pages/ActionsPage/OneActionPage";
-import AboutUsPage from "./components/Pages/AboutUsPage/AboutUsPage";
+import AboutUsPage from "./components/Pages/AboutUsPage/AboutUsPage.js";
 import ServicesPage from "./components/Pages/ServicesPage/ServicesPage";
 import OneServicePage from "./components/Pages/ServicesPage/OneServicePage";
 import StoriesPage from "./components/Pages/StoriesPage/StoriesPage";
@@ -221,6 +221,7 @@ class AppRouter extends Component {
     await this.setStateAsync({ triedLogin: true });
     let { data } = await apiCall("auth.whoami");
     let user = null;
+    
     if (data) {
       user = data;
     } else {
@@ -249,6 +250,7 @@ class AppRouter extends Component {
         apiCall("users.actions.completed.list", { email: user.email }),
         apiCall("users.events.list", { email: user.email }),
       ]);
+      console.log('we pinged the users.events.list endpoint');
 
       if (userActionsTodoResponse && userActionsCompletedResponse) {
         this.props.reduxLoadTodo(userActionsTodoResponse.data);
